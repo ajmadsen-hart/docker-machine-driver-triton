@@ -35,6 +35,7 @@ var (
 	// https://docs.joyent.com/public-cloud/instances/virtual-machines/images/linux/debian#debian-8
 	defaultTritonImage   = "debian-8"
 	defaultTritonPackage = "g3-standard-0.25-kvm"
+	defaultTritonSshUser = "root"
 )
 
 type Driver struct {
@@ -49,6 +50,7 @@ type Driver struct {
 	// machine creation parameters
 	TritonImage   string
 	TritonPackage string
+	TritonSshUser string
 
 	// machine state
 	TritonMachineId string
@@ -63,6 +65,7 @@ func (d *Driver) SetConfigFromFlags(opts drivers.DriverOptions) error {
 
 	d.TritonImage = opts.String(flagPrefix + "image")
 	d.TritonPackage = opts.String(flagPrefix + "package")
+	d.BaseDriver.SSHUser = opts.String(flagPrefix + "ssh-user")
 
 	d.SetSwarmConfigFromFlags(opts)
 
@@ -127,6 +130,11 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Usage: `VM instance size to create ("g3-standard-0.25-kvm", "g3-standard-0.5-kvm", etc)`,
 			Value: defaultTritonPackage,
 		},
+		mcnflag.StringFlag{
+			Name:  flagPrefix + "ssh-user",
+			Usage: `The username to login via SSH ("ubuntu", "root", etc)`,
+			Value: defaultTritonSshUser,
+		},
 	}
 }
 
@@ -181,6 +189,7 @@ func NewDriver(hostName, storePath string) Driver {
 		BaseDriver: &drivers.BaseDriver{
 			MachineName: hostName,
 			StorePath:   storePath,
+			SSHUser:     defaultTritonSshUser,
 		},
 	}
 }
