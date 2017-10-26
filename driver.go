@@ -83,9 +83,6 @@ func (d *Driver) SetConfigFromFlags(opts drivers.DriverOptions) error {
 	if d.TritonKeyPath == "" {
 		return fmt.Errorf("%s driver requires the --%skey-path/%sKEY_PATH option", driverName, flagPrefix, envPrefix)
 	}
-	if d.TritonKeyId == "" {
-		return fmt.Errorf("%s driver requires the --%skey-id/%sKEY_ID option", driverName, flagPrefix, envPrefix)
-	}
 	if d.TritonUrl == "" {
 		return fmt.Errorf("%s driver requires the --%surl/%sURL option", driverName, flagPrefix, envPrefix)
 	}
