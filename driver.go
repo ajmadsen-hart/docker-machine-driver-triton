@@ -1,12 +1,17 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	stdlog "log"
 	"os"
 	"strings"
 	"time"
+
+	"crypto/rsa"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/docker/machine/libmachine/drivers"
 	"github.com/docker/machine/libmachine/engine"
@@ -24,6 +29,10 @@ const (
 	flagPrefix = driverName + "-"
 	// SDC_ is for historical reasons
 	envPrefix = "SDC_"
+)
+
+var (
+	errKeyNotRsa = errors.New("SSH key must be of type RSA")
 )
 
 var (
@@ -60,7 +69,6 @@ type Driver struct {
 func (d *Driver) SetConfigFromFlags(opts drivers.DriverOptions) error {
 	d.TritonAccount = opts.String(flagPrefix + "account")
 	d.TritonKeyPath = opts.String(flagPrefix + "key-path")
-	d.TritonKeyId = opts.String(flagPrefix + "key-id")
 	d.TritonUrl = opts.String(flagPrefix + "url")
 
 	d.TritonImage = opts.String(flagPrefix + "image")
@@ -108,12 +116,6 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Value:  defaultTritonAccount,
 		},
 		mcnflag.StringFlag{
-			EnvVar: envPrefix + "KEY_ID",
-			Name:   flagPrefix + "key-id",
-			Usage:  fmt.Sprintf(`The fingerprint of $%sKEY_PATH (ssh-keygen -l -E md5 -f $%sKEY_PATH | awk '{ gsub(/^[^:]+:/, "", $2); print $2 }')`, envPrefix, envPrefix),
-			Value:  defaultTritonKeyId,
-		},
-		mcnflag.StringFlag{
 			EnvVar: envPrefix + "KEY_PATH",
 			Name:   flagPrefix + "key-path",
 			Usage:  fmt.Sprintf("A path to an SSH private key file that has been added to $%sACCOUNT", envPrefix),
@@ -143,6 +145,26 @@ func (d Driver) client() (*cloudapi.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// attempt to compute keyId
+	privKey, err := ssh.ParseRawPrivateKey(keyData)
+	if err != nil {
+		return nil, err
+	}
+
+	rsaPrivKey, ok := privKey.(*rsa.PrivateKey)
+	if !ok {
+		return nil, errKeyNotRsa
+	}
+
+	pubKey, err := ssh.NewPublicKey(rsaPrivKey.Public())
+	if err != nil {
+		return nil, err
+	}
+
+	// we've got it!
+	d.TritonKeyId = ssh.FingerprintLegacyMD5(pubKey)
+
 	userAuth, err := auth.NewAuth(d.TritonAccount, string(keyData), "rsa-sha256")
 	if err != nil {
 		return nil, err
