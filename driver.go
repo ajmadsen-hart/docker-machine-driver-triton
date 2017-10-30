@@ -36,10 +36,11 @@ var (
 )
 
 var (
-	defaultTritonAccount = ""
-	defaultTritonKeyPath = os.Getenv("HOME") + "/.ssh/id_rsa"
-	defaultTritonKeyId   = ""
-	defaultTritonUrl     = "https://us-east-1.api.joyent.com"
+	defaultTritonAccount     = ""
+	defaultTritonKeyPath     = os.Getenv("HOME") + "/.ssh/id_rsa"
+	defaultTritonKeyContents = ""
+	defaultTritonKeyId       = ""
+	defaultTritonUrl         = "https://us-east-1.api.joyent.com"
 
 	// https://docs.joyent.com/public-cloud/instances/virtual-machines/images/linux/debian#debian-8
 	defaultTritonImage   = "debian-8"
@@ -51,10 +52,11 @@ type Driver struct {
 	*drivers.BaseDriver
 
 	// authentication/access parameters
-	TritonAccount string
-	TritonKeyPath string
-	TritonKeyId   string
-	TritonUrl     string
+	TritonAccount     string
+	TritonKeyPath     string
+	TritonKeyContents string
+	TritonKeyId       string
+	TritonUrl         string
 
 	// machine creation parameters
 	TritonImage   string
@@ -69,6 +71,7 @@ type Driver struct {
 func (d *Driver) SetConfigFromFlags(opts drivers.DriverOptions) error {
 	d.TritonAccount = opts.String(flagPrefix + "account")
 	d.TritonKeyPath = opts.String(flagPrefix + "key-path")
+	d.TritonKeyContents = opts.String(flagPrefix + "key-contents")
 	d.TritonUrl = opts.String(flagPrefix + "url")
 
 	d.TritonImage = opts.String(flagPrefix + "image")
@@ -80,8 +83,8 @@ func (d *Driver) SetConfigFromFlags(opts drivers.DriverOptions) error {
 	if d.TritonAccount == "" {
 		return fmt.Errorf("%s driver requires the --%saccount/%sACCOUNT option", driverName, flagPrefix, envPrefix)
 	}
-	if d.TritonKeyPath == "" {
-		return fmt.Errorf("%s driver requires the --%skey-path/%sKEY_PATH option", driverName, flagPrefix, envPrefix)
+	if d.TritonKeyPath == "" || d.TritonKeyContents == "" {
+		return fmt.Errorf("%s driver requires either the --%skey-path/%sKEY_PATH or the --%skey-contents/%sKEY_CONTENTS option", driverName, flagPrefix, envPrefix, flagPrefix, envPrefix)
 	}
 	if d.TritonUrl == "" {
 		return fmt.Errorf("%s driver requires the --%surl/%sURL option", driverName, flagPrefix, envPrefix)
@@ -118,6 +121,12 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Usage:  fmt.Sprintf("A path to an SSH private key file that has been added to $%sACCOUNT", envPrefix),
 			Value:  defaultTritonKeyPath,
 		},
+		mcnflag.StringFlag{
+			EnvVar: envPrefix + "KEY_CONTENTS",
+			Name:   flagPrefix + "key-contents",
+			Usage:  fmt.Sprintf("The contents of an SSH private key file that has been added to $%sACCOUNT", envPrefix),
+			Value:  defaultTritonKeyContents,
+		},
 
 		mcnflag.StringFlag{
 			Name:  flagPrefix + "image",
@@ -138,9 +147,14 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 }
 
 func (d Driver) client() (*cloudapi.Client, error) {
-	keyData, err := ioutil.ReadFile(d.TritonKeyPath)
-	if err != nil {
-		return nil, err
+	keyData := []byte(d.TritonKeyContents)
+	var err error
+
+	if len(keyData) == 0 {
+		keyData, err = ioutil.ReadFile(d.TritonKeyPath)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// attempt to compute keyId
