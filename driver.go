@@ -244,13 +244,16 @@ func (d *Driver) Create() error {
 		return err
 	}
 
-	machine, err := client.CreateMachine(cloudapi.CreateMachineOpts{
+	machineOpts := cloudapi.CreateMachineOpts{
 		Name: d.MachineName,
 
-		Image:    d.TritonImage,
-		Package:  d.TritonPackage,
-		Networks: strings.Split(d.TritonNetwork, ","),
-	})
+		Image:   d.TritonImage,
+		Package: d.TritonPackage,
+	}
+	if d.TritonNetwork != "" {
+		machineOpts.Networks = strings.Split(d.TritonNetwork, ",")
+	}
+	machine, err := client.CreateMachine(machineOpts)
 	if err != nil {
 		return err
 	}
