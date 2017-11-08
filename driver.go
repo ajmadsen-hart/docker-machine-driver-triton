@@ -377,7 +377,9 @@ func (d *Driver) PreCreateCheck() error {
 				log.Infof("reolved network %q to %q (exact short id match)", networkId, shortIdMatches[0].Id)
 				d.TritonNetwork[networkIdx] = shortIdMatches[0].Id
 			} else {
-				log.Warnf("network %q is an ambiguous short id", networkId)
+				if len(shortIdMatches) > 1 {
+					log.Warnf("network %q is an ambiguous short id", networkId)
+				}
 				return err
 			}
 		}
