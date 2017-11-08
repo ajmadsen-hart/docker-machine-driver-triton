@@ -62,7 +62,7 @@ type Driver struct {
 	// machine creation parameters
 	TritonImage   string
 	TritonPackage string
-	TritonNetwork string
+	TritonNetwork []string
 
 	// machine state
 	TritonMachineId string
@@ -78,7 +78,7 @@ func (d *Driver) SetConfigFromFlags(opts drivers.DriverOptions) error {
 	d.TritonImage = opts.String(flagPrefix + "image")
 	d.TritonPackage = opts.String(flagPrefix + "package")
 	d.BaseDriver.SSHUser = opts.String(flagPrefix + "ssh-user")
-	d.TritonNetwork = opts.String(flagPrefix + "network")
+	tritonNetwork := opts.String(flagPrefix + "network")
 
 	d.SetSwarmConfigFromFlags(opts)
 
@@ -97,6 +97,9 @@ func (d *Driver) SetConfigFromFlags(opts drivers.DriverOptions) error {
 	}
 	if d.TritonPackage == "" {
 		return fmt.Errorf("%s driver requires the --%spackage option", driverName, flagPrefix)
+	}
+	if tritonNetwork != "" {
+		d.TritonNetwork = strings.Split(tritonNetwork, ",")
 	}
 
 	return nil
@@ -250,8 +253,8 @@ func (d *Driver) Create() error {
 		Image:   d.TritonImage,
 		Package: d.TritonPackage,
 	}
-	if d.TritonNetwork != "" {
-		machineOpts.Networks = strings.Split(d.TritonNetwork, ",")
+	if len(d.TritonNetwork) > 0 {
+		machineOpts.Networks = d.TritonNetwork
 	}
 	machine, err := client.CreateMachine(machineOpts)
 	if err != nil {
@@ -340,6 +343,43 @@ func (d *Driver) PreCreateCheck() error {
 				log.Warnf("image %q is an ambiguous short id", d.TritonImage)
 			}
 			return err
+		}
+	}
+
+	for networkIdx, networkId := range d.TritonNetwork {
+		var networks []cloudapi.Network
+		if _, err := client.GetNetwork(networkId); err != nil {
+			if networks == nil {
+				var networksErr error
+				networks, networksErr = client.ListNetworks()
+				if networksErr != nil {
+					return networksErr
+				}
+			}
+
+			// eww linear search
+			nameMatches, shortIdMatches := []cloudapi.Network{}, []cloudapi.Network{}
+			for _, net := range networks {
+				if net.Name == networkId {
+					nameMatches = append(nameMatches, net)
+				} else if uuidToShortId(net.Id) == networkId {
+					shortIdMatches = append(shortIdMatches, net)
+				}
+			}
+
+			if len(nameMatches) == 1 {
+				log.Infof("resolved network %q to %q (exact name match)", networkId, nameMatches[0].Id)
+				d.TritonNetwork[networkIdx] = nameMatches[0].Id
+			} else if len(nameMatches) > 1 {
+				log.Warnf("network %q matched multiple networks", networkId)
+				return err
+			} else if len(shortIdMatches) == 1 {
+				log.Infof("reolved network %q to %q (exact short id match)", networkId, shortIdMatches[0].Id)
+				d.TritonNetwork[networkIdx] = shortIdMatches[0].Id
+			} else {
+				log.Warnf("network %q is an ambiguous short id", networkId)
+				return err
+			}
 		}
 	}
 
