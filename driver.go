@@ -46,6 +46,7 @@ var (
 	defaultTritonImage   = "debian-8"
 	defaultTritonPackage = "g3-standard-0.25-kvm"
 	defaultTritonSshUser = "root"
+	defaultTritonNetwork = ""
 )
 
 type Driver struct {
@@ -61,7 +62,7 @@ type Driver struct {
 	// machine creation parameters
 	TritonImage   string
 	TritonPackage string
-	TritonSshUser string
+	TritonNetwork string
 
 	// machine state
 	TritonMachineId string
@@ -77,6 +78,7 @@ func (d *Driver) SetConfigFromFlags(opts drivers.DriverOptions) error {
 	d.TritonImage = opts.String(flagPrefix + "image")
 	d.TritonPackage = opts.String(flagPrefix + "package")
 	d.BaseDriver.SSHUser = opts.String(flagPrefix + "ssh-user")
+	d.TritonNetwork = opts.String(flagPrefix + "network")
 
 	d.SetSwarmConfigFromFlags(opts)
 
@@ -142,6 +144,11 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Name:  flagPrefix + "ssh-user",
 			Usage: `The username to login via SSH ("ubuntu", "root", etc)`,
 			Value: defaultTritonSshUser,
+		},
+		mcnflag.StringFlag{
+			Name:  flagPrefix + "network",
+			Usage: `The network on which the host will be created (default is "external" and default account network)`,
+			Value: defaultTritonNetwork,
 		},
 	}
 }
@@ -240,8 +247,9 @@ func (d *Driver) Create() error {
 	machine, err := client.CreateMachine(cloudapi.CreateMachineOpts{
 		Name: d.MachineName,
 
-		Image:   d.TritonImage,
-		Package: d.TritonPackage,
+		Image:    d.TritonImage,
+		Package:  d.TritonPackage,
+		Networks: strings.Split(d.TritonNetwork, ","),
 	})
 	if err != nil {
 		return err
