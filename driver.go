@@ -88,6 +88,9 @@ func (d *Driver) SetConfigFromFlags(opts drivers.DriverOptions) error {
 	if d.TritonKeyPath == "" || d.TritonKeyContents == "" {
 		return fmt.Errorf("%s driver requires either the --%skey-path/%sKEY_PATH or the --%skey-contents/%sKEY_CONTENTS option", driverName, flagPrefix, envPrefix, flagPrefix, envPrefix)
 	}
+	if d.TritonKeyPath != defaultTritonKeyPath && d.TritonKeyContents != defaultTritonKeyContents {
+		return fmt.Errorf("%s driver requires --%skey-path/%sKEY_PATH and the --%skey-contents/%sKEY_CONTENTS option be mutually exclusive", driverName, flagPrefix, envPrefix, flagPrefix, envPrefix)
+	}
 	if d.TritonUrl == "" {
 		return fmt.Errorf("%s driver requires the --%surl/%sURL option", driverName, flagPrefix, envPrefix)
 	}
@@ -388,6 +391,31 @@ func (d *Driver) PreCreateCheck() error {
 	// GetPackage (and CreateMachine) both support package names and UUIDs interchangeably
 	if _, err := client.GetPackage(d.TritonPackage); err != nil {
 		return err
+	}
+
+	// We need to store the key temporarily if we've been given it on the command line
+	// XXX: This only works on Linux :(
+	if d.TritonKeyContents != defaultTritonKeyContents {
+		tmpfile, err := ioutil.TempFile("", "rancher_ssh_key")
+		if err != nil {
+			return err
+		}
+		tmpfile.Chmod(0600)
+		err = os.Remove(tmpfile.Name())
+		if err != nil {
+			log.Errorf("could not remove temporary file %q", tmpfile.Name())
+			return err
+		}
+
+		_, err = tmpfile.WriteString(d.TritonKeyContents)
+		if err != nil {
+			return err
+		}
+		if err = tmpfile.Sync(); err != nil {
+			return err
+		}
+
+		d.SSHKeyPath = fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), tmpfile.Fd())
 	}
 
 	return nil
