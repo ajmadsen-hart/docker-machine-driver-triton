@@ -66,6 +66,9 @@ type Driver struct {
 
 	// machine state
 	TritonMachineId string
+
+	// hack to keep tmp file open
+	tritonTmpKeyFile *os.File
 }
 
 // SetConfigFromFlags configures the driver with the object that was returned by RegisterCreateFlags
@@ -418,6 +421,7 @@ func (d *Driver) PreCreateCheck() error {
 		}
 
 		d.TritonKeyPath = fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), tmpfile.Fd())
+		d.tritonTmpKeyFile = tmpfile
 		log.Infof("wrote provided key to %q", d.TritonKeyPath)
 	}
 
