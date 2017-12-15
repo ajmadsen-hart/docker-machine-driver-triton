@@ -396,6 +396,8 @@ func (d *Driver) PreCreateCheck() error {
 	// We need to store the key temporarily if we've been given it on the command line
 	// XXX: This only works on Linux :(
 	if d.TritonKeyContents != defaultTritonKeyContents {
+		log.Infof("caching the provided key to disk")
+
 		tmpfile, err := ioutil.TempFile("", "rancher_ssh_key")
 		if err != nil {
 			return err
@@ -415,7 +417,8 @@ func (d *Driver) PreCreateCheck() error {
 			return err
 		}
 
-		d.SSHKeyPath = fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), tmpfile.Fd())
+		d.TritonKeyPath = fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), tmpfile.Fd())
+		log.Infof("wrote provided key to %q", d.TritonKeyPath)
 	}
 
 	return nil
